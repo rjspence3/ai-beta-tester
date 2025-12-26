@@ -207,10 +207,14 @@ class Orchestrator:
 
 Your goal: {session.goal}
 
-Start by navigating to the URL and taking a snapshot to see the current state.
-Then proceed according to your personality and testing approach.
+IMPORTANT: When navigating to any URL, always use waitUntil: "networkidle" to ensure
+JavaScript frameworks (React, Next.js, Vue, etc.) have fully hydrated before interacting
+with the page. Example: playwright_navigate(url: "...", waitUntil: "networkidle")
 
-Remember to report findings as you encounter them.
+Start by navigating to the URL with waitUntil: "networkidle", then take a screenshot
+to see the current state. Then proceed according to your personality and testing approach.
+
+Remember to report findings using the report_finding tool as you encounter them.
 """
 
         action_sequence = 0
