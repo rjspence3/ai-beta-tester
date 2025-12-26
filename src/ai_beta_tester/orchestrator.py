@@ -11,6 +11,8 @@ from claude_agent_sdk import (
     ResultMessage,
     TextBlock,
     ToolUseBlock,
+    create_sdk_mcp_server,
+    tool,
 )
 
 from ai_beta_tester.models import (
@@ -23,7 +25,30 @@ from ai_beta_tester.models import (
     Session,
     SessionConfig,
 )
+from ai_beta_tester.models.agent_run import AgentRunStatus
 from ai_beta_tester.personalities import get_personality, list_personalities
+from ai_beta_tester.security import NavigationGuard
+from ai_beta_tester.models.rubric import AgentVerdict, CognitiveLoad
+from ai_beta_tester.scoring.score_run import calculate_agent_score
+from ai_beta_tester.scoring.aggregate import calculate_aggregate_score
+
+
+# Define the structured finding tool
+@tool(
+    name="report_finding",
+    description="Report a specific finding (bug, UX issue, etc) discovered during testing.",
+    input_schema={
+        "category": str,
+        "severity": str,
+        "title": str,
+        "description": str
+    }
+)
+async def report_finding_tool(args: dict) -> dict:
+    """Record a finding."""
+    # This is a dummy implementation for the SDK.
+    # The actual processing happens in the Orchestrator loop by inspecting ToolUseBlocks.
+    return {"content": [{"type": "text", "text": "Finding recorded."}]}
 
 
 @dataclass
@@ -63,7 +88,11 @@ class Orchestrator:
 
         Raises:
             ValueError: If an unknown personality name is provided.
+            SecurityViolation: If the target_url is blocked.
         """
+        # Validate target URL security
+        NavigationGuard.validate_url(target_url)
+
         session = Session(
             target_url=target_url,
             goal=goal,
@@ -90,6 +119,10 @@ class Orchestrator:
             session.agent_runs.append(agent_run)
 
         session.complete()
+        
+        # Calculate aggregate session score and metrics
+        session.aggregate_score = calculate_aggregate_score(session)
+        
         return session
 
     async def _run_agent(
@@ -117,32 +150,58 @@ class Orchestrator:
         personality_cls = get_personality(personality_name)
         system_prompt = personality_cls.get_system_prompt(session.goal)
 
+        # Create an in-process MCP server for the report_finding tool
+        findings_server = create_sdk_mcp_server(
+            name="findings",
+            tools=[report_finding_tool],
+        )
+
         # Configure the agent with Playwright MCP for browser automation
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             mcp_servers={
                 "playwright": {
                     "command": "npx",
-                    "args": ["@anthropic-ai/mcp-server-playwright"],
-                }
+                    "args": ["@executeautomation/playwright-mcp-server"],
+                },
+                "findings": findings_server,
             },
             allowed_tools=[
                 # Playwright browser tools
-                "mcp__playwright__browser_navigate",
-                "mcp__playwright__browser_snapshot",
-                "mcp__playwright__browser_click",
-                "mcp__playwright__browser_type",
-                "mcp__playwright__browser_scroll",
-                "mcp__playwright__browser_hover",
-                "mcp__playwright__browser_take_screenshot",
-                "mcp__playwright__browser_press_key",
-                "mcp__playwright__browser_select_option",
-                "mcp__playwright__browser_wait_for",
+                "playwright_navigate",
+                "playwright_screenshot",
+                "playwright_click",
+                "playwright_fill",
+                "playwright_select",
+                "playwright_hover",
+                "playwright_press_key",
+                "playwright_evaluate",
+                # Findings tool
+                "report_finding",
             ],
             permission_mode="bypassPermissions",
             max_turns=session.config.max_actions,
             model=self.config.model,
         )
+
+        # Special configuration for Hybrid Auditor: Add Filesystem MCP
+        if personality_name == "hybrid_auditor":
+            # Add filesystem server
+            options.mcp_servers["filesystem"] = {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+            }
+            # Add filesystem tools
+            options.allowed_tools.extend([
+                "read_file",
+                "read_multiple_files",
+                "write_file",
+                "create_directory",
+                "list_directory",
+                "move_file",
+                "search_files",
+                "get_file_info",
+            ])
 
         initial_prompt = f"""Begin testing the application at: {session.target_url}
 
@@ -164,21 +223,29 @@ Remember to report findings as you encounter them.
                     if isinstance(message, AssistantMessage):
                         for block in message.content:
                             if isinstance(block, ToolUseBlock):
-                                action = self._tool_use_to_action(
-                                    block, action_sequence
-                                )
-                                if action:
-                                    agent_run.actions.append(action)
-                                    action_sequence += 1
+                                if block.name == "report_finding":
+                                    # Structured Finding
+                                    try:
+                                        finding = Finding(
+                                            agent_run_id=agent_run.id,
+                                            category=FindingCategory(block.input.get("category")),
+                                            severity=FindingSeverity(block.input.get("severity")),
+                                            title=block.input.get("title"),
+                                            description=block.input.get("description"),
+                                            action_sequence=[a.sequence for a in agent_run.actions[-5:]],
+                                        )
+                                        agent_run.findings.append(finding)
+                                    except Exception as e:
+                                        print(f"Error parsing finding: {e}")
 
-                            # Extract findings from text responses
-                            if isinstance(block, TextBlock):
-                                findings = self._extract_findings_from_text(
-                                    block.text,
-                                    agent_run.id,
-                                    [a.sequence for a in agent_run.actions[-5:]],
-                                )
-                                agent_run.findings.extend(findings)
+                                else:
+                                    # Regular browser action
+                                    action = self._tool_use_to_action(
+                                        block, action_sequence
+                                    )
+                                    if action:
+                                        agent_run.actions.append(action)
+                                        action_sequence += 1
 
                     # Check for completion
                     if isinstance(message, ResultMessage):
@@ -187,6 +254,23 @@ Remember to report findings as you encounter them.
                         else:
                             agent_run.complete()
                         break
+
+                # Interview the agent for a verdict (all personalities)
+                if agent_run.status != AgentRunStatus.FAILED:
+                    interview_prompt = personality_cls.get_verdict_prompt()
+                    await client.query(interview_prompt)
+                    
+                    verdict_text = ""
+                    async for message in client.receive_messages():
+                        if isinstance(message, AssistantMessage):
+                            for block in message.content:
+                                if isinstance(block, TextBlock):
+                                    verdict_text += block.text
+                        if isinstance(message, ResultMessage):
+                            break
+                    
+                    # Simple parsing of the verdict
+                    agent_run.verdict = self._parse_verdict(verdict_text)
 
         except Exception as e:
             agent_run.fail()
@@ -201,6 +285,9 @@ Remember to report findings as you encounter them.
                     action_sequence=[a.sequence for a in agent_run.actions],
                 )
             )
+            
+        # Calculate score for this run
+        agent_run.score = calculate_agent_score(agent_run)
 
         return agent_run
 
@@ -211,27 +298,46 @@ Remember to report findings as you encounter them.
 
         Maps Playwright MCP tool names to our ActionType enum for consistent
         tracking regardless of the underlying automation tool. Returns None
-        for unrecognized tools (e.g., internal Claude tools).
+        for unrecognized tools.
         """
         tool_name = tool_use.name
         tool_input = tool_use.input
 
-        # MCP tools follow the pattern: mcp__{server}__{tool}
-        # We map these to our ActionType enum for report generation
-        action_type_map = {
-            "mcp__playwright__browser_navigate": ActionType.NAVIGATE,
-            "mcp__playwright__browser_click": ActionType.CLICK,
-            "mcp__playwright__browser_type": ActionType.TYPE,
-            "mcp__playwright__browser_scroll": ActionType.SCROLL,
-            "mcp__playwright__browser_hover": ActionType.HOVER,
-            "mcp__playwright__browser_take_screenshot": ActionType.SCREENSHOT,
-            "mcp__playwright__browser_press_key": ActionType.PRESS_KEY,
-            "mcp__playwright__browser_select_option": ActionType.SELECT,
-            "mcp__playwright__browser_wait_for": ActionType.WAIT,
-            "mcp__playwright__browser_snapshot": ActionType.SCREENSHOT,
+        # print(f"DEBUG: Processing tool use: {tool_name}")  # Debug logging
+
+        # Special handling for Bash tool from the model
+        if tool_name == "Bash":
+            command = tool_input.get("command", "") if isinstance(tool_input, dict) else str(tool_input)
+            return Action(
+                sequence=sequence,
+                action_type=ActionType.TYPE,
+                parameters={
+                    "element": "Terminal",
+                    "text": command
+                }
+            )
+
+        # Map using suffixes for robustness against namespace changes
+        suffix_map = {
+            "navigate": ActionType.NAVIGATE,
+            "click": ActionType.CLICK,
+            "fill": ActionType.TYPE,
+            "scroll": ActionType.SCROLL,
+            "hover": ActionType.HOVER,
+            "screenshot": ActionType.SCREENSHOT,
+            "press_key": ActionType.PRESS_KEY,
+            "select": ActionType.SELECT,
+            "wait_for": ActionType.WAIT,
+            "snapshot": ActionType.SCREENSHOT,
+            "evaluate": ActionType.WAIT,
         }
 
-        action_type = action_type_map.get(tool_name)
+        action_type = None
+        for suffix, type_enum in suffix_map.items():
+            if tool_name.endswith(suffix):
+                action_type = type_enum
+                break
+
         if action_type is None:
             return None
 
@@ -241,65 +347,54 @@ Remember to report findings as you encounter them.
             parameters=dict(tool_input) if isinstance(tool_input, dict) else {},
         )
 
-    def _extract_findings_from_text(
-        self,
-        text: str,
-        agent_run_id: UUID,
-        recent_action_sequences: list[int],
-    ) -> list[Finding]:
-        """Extract findings from agent text responses.
 
-        This is a simple heuristic-based extraction. A more robust approach
-        would use structured output or a dedicated parsing step.
-        """
-        findings: list[Finding] = []
 
-        # Look for finding markers in the text
-        finding_keywords = {
-            "BUG": FindingCategory.BUG,
-            "UX_FRICTION": FindingCategory.UX_FRICTION,
-            "EDGE_CASE": FindingCategory.EDGE_CASE,
-            "ACCESSIBILITY": FindingCategory.ACCESSIBILITY,
-            "MISSING_FEEDBACK": FindingCategory.MISSING_FEEDBACK,
-            "PERFORMANCE": FindingCategory.PERFORMANCE,
-        }
+    def _parse_verdict(self, text: str) -> AgentVerdict:
+        """Parse the structured verdict response."""
+        verdict = AgentVerdict()
+        
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if "1. Was the first screen acceptable?" in line:
+                if "Yes" in line:
+                    verdict.first_screen_acceptable = True
+                elif "No" in line:
+                    verdict.first_screen_acceptable = False
+            elif "2. Did you override" in line:
+                raw = line.split("?")[1].strip() if "?" in line else line
+                # Simple extraction of count if present, else just detect yes
+                if "Yes" in raw:
+                    import re
+                    match = re.search(r"(\d+)", raw)
+                    verdict.override_count = int(match.group(1)) if match else 1
+                    verdict.override_reasons.append(raw)
+            elif "3. Did the UI reduce" in line:
+                if "Increased" in line:
+                    verdict.cognitive_load = CognitiveLoad.INCREASED
+                elif "Reduced" in line:
+                    verdict.cognitive_load = CognitiveLoad.REDUCED
+                else:
+                    verdict.cognitive_load = CognitiveLoad.NEUTRAL
+            elif "4. Did any transition" in line:
+                 pass # Currently not mapped in simple Verdict model yet
+            elif "5. Would you continue" in line:
+                if "Yes" in line:
+                    verdict.would_use_again = True
+                elif "No" in line:
+                    verdict.would_use_again = False
+            elif "6. Trust Score" in line:
+                import re
+                match = re.search(r"(\d+)", line)
+                if match:
+                    verdict.trust_level = int(match.group(1))
+            elif "Commentary:" in line or line.startswith(">"):
+                verdict.commentary = line.replace("Commentary:", "").replace(">", "").strip()
+        
+        # Capture multi-line commentary if not caught above
+        if not verdict.commentary and "Commentary" in text:
+            parts = text.split("Commentary")
+            if len(parts) > 1:
+                verdict.commentary = parts[1].strip(": \n\"'")
 
-        severity_keywords = {
-            "critical": FindingSeverity.CRITICAL,
-            "high": FindingSeverity.HIGH,
-            "medium": FindingSeverity.MEDIUM,
-            "low": FindingSeverity.LOW,
-        }
-
-        # Simple extraction: look for category mentions
-        text_upper = text.upper()
-        for keyword, category in finding_keywords.items():
-            if keyword in text_upper:
-                # Found a potential finding
-                severity = FindingSeverity.MEDIUM  # Default
-                for sev_kw, sev in severity_keywords.items():
-                    if sev_kw in text.lower():
-                        severity = sev
-                        break
-
-                # Extract a title (first line containing the keyword)
-                lines = text.split("\n")
-                title = "Issue found"
-                for line in lines:
-                    if keyword in line.upper():
-                        title = line.strip()[:100]
-                        break
-
-                findings.append(
-                    Finding(
-                        agent_run_id=agent_run_id,
-                        category=category,
-                        severity=severity,
-                        title=title,
-                        description=text[:500],
-                        action_sequence=recent_action_sequences,
-                    )
-                )
-                break  # One finding per text block for simplicity
-
-        return findings
+        return verdict
