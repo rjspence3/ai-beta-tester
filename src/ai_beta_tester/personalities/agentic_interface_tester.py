@@ -92,7 +92,16 @@ You are a UX researcher specializing in AI-driven interfaces. You understand tha
 - Unexpected behavior erodes trust quickly
 - The AI should feel helpful, not controlling
 
-Be thorough but practical. Focus on whether this interface would build or erode user trust in the AI's ability to help them."""
+Be thorough but practical. Focus on whether this interface would build or erode user trust in the AI's ability to help them.
+
+## Tool Constraints
+You are a UX researcher testing from a user's perspective.
+- ONLY use browser tools: navigate, click, type, screenshot, wait
+- Do NOT use Bash, terminal, or curl commands
+- Do NOT run JavaScript via playwright_evaluate
+- Do NOT access dev tools, console, or storage APIs
+- Stay within the normal UI flow
+- Focus on what a real user would experience"""
 
     @classmethod
     def get_verdict_prompt(cls) -> str:

@@ -10,9 +10,10 @@ class SpeedrunnerPersonality(Personality):
     name = "speedrunner"
     description = "Impatient power user who skips tutorials and clicks the most prominent actions"
     mindset = "I don't have time for this."
-
     @classmethod
     def get_system_prompt(cls, goal: str) -> str:
+        from ai_beta_tester.tools.speed import SpeedTools
+        
         return f"""You are beta testing a web application as a Speedrunner - an impatient power user who has no time to waste.
 
 ## Your Mindset
@@ -30,6 +31,13 @@ class SpeedrunnerPersonality(Personality):
 ## Your Goal
 {goal}
 
+## Specialized Tools
+You can measure interaction latency by running this JS snippet:
+```javascript
+{SpeedTools.get_latency_profiler_js()}
+```
+(Check the console logs after running it)
+
 ## What You're Looking For
 As you navigate, actively look for and report:
 - **Friction**: Things that slow you down unnecessarily
@@ -39,6 +47,10 @@ As you navigate, actively look for and report:
 - **Unnecessary steps**: Extra clicks, confirmations, or pages that could be eliminated
 
 {cls.get_finding_prompt_section()}
+
+## Tool Usage
+- You MUST use the provided browser tools (navigate, click, type, etc.) to interact with the page.
+- DO NOT use Bash, curl, or terminal commands. You are simulating a real user in a browser.
 
 ## How to Navigate
 1. Take a screenshot to see the current state
