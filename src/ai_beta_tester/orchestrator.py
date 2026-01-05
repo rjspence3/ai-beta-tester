@@ -1,7 +1,9 @@
 """Orchestrator for managing test sessions with AI agent personalities."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Awaitable, Callable
 from uuid import UUID
 
 from claude_agent_sdk import (
@@ -14,6 +16,9 @@ from claude_agent_sdk import (
     create_sdk_mcp_server,
     tool,
 )
+
+# Type alias for event callback
+EventCallback = Callable[[str, dict], Awaitable[None]] | None
 
 from ai_beta_tester.models import (
     Action,
@@ -74,6 +79,7 @@ class Orchestrator:
         goal: str,
         personalities: list[str] | None = None,
         session_config: SessionConfig | None = None,
+        event_callback: EventCallback = None,
     ) -> Session:
         """Run a test session with specified personalities.
 
@@ -82,6 +88,8 @@ class Orchestrator:
             goal: What the agent should try to accomplish (e.g., "Complete signup").
             personalities: List of personality names to run. Defaults to ["speedrunner"].
             session_config: Optional configuration for timeouts and limits.
+            event_callback: Optional async callback for real-time event notifications.
+                Signature: async (event_type: str, data: dict) -> None
 
         Returns:
             Session object containing all agent runs and their findings.
@@ -109,14 +117,34 @@ class Orchestrator:
             if name not in available:
                 raise ValueError(f"Unknown personality '{name}'. Available: {available}")
 
-        # Run each personality sequentially for MVP
-        # Phase 2 will add parallel execution
-        for personality_name in personality_names:
+        # Run each personality sequentially with delay to avoid API rate limits
+        for i, personality_name in enumerate(personality_names):
+            # Add delay between agents (skip for first agent)
+            if i > 0 and session.config.agent_delay_seconds > 0:
+                await asyncio.sleep(session.config.agent_delay_seconds)
+            # Emit agent started event
+            if event_callback:
+                await event_callback("agent_started", {
+                    "personality": personality_name,
+                    "agent_index": len(session.agent_runs),
+                    "total_agents": len(personality_names),
+                })
+
             agent_run = await self._run_agent(
                 session=session,
                 personality_name=personality_name,
+                event_callback=event_callback,
             )
             session.agent_runs.append(agent_run)
+
+            # Emit agent completed event
+            if event_callback:
+                await event_callback("agent_completed", {
+                    "personality": personality_name,
+                    "status": agent_run.status.value,
+                    "action_count": agent_run.action_count,
+                    "finding_count": agent_run.finding_count,
+                })
 
         session.complete()
         
@@ -129,6 +157,7 @@ class Orchestrator:
         self,
         session: Session,
         personality_name: str,
+        event_callback: EventCallback = None,
     ) -> AgentRun:
         """Run a single agent personality against the target.
 
@@ -186,24 +215,68 @@ class Orchestrator:
 
         # Special configuration for Hybrid Auditor: Add Filesystem MCP
         if personality_name == "hybrid_auditor":
+            # Use source_dir from session config if provided, else current directory
+            source_dir = getattr(session.config, "source_dir", None) or "."
             # Add filesystem server
             options.mcp_servers["filesystem"] = {
                 "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", source_dir],
             }
-            # Add filesystem tools
+            # Add filesystem tools (MCP server-filesystem tool names)
+            # Tools may be prefixed with "filesystem_" by the SDK
             options.allowed_tools.extend([
-                "read_file",
+                # Unprefixed names
+                "read_text_file",
                 "read_multiple_files",
+                "read_media_file",
                 "write_file",
                 "create_directory",
                 "list_directory",
+                "directory_tree",
                 "move_file",
                 "search_files",
                 "get_file_info",
+                "list_allowed_directories",
+                # Prefixed names (in case SDK prefixes with server name)
+                "filesystem_read_text_file",
+                "filesystem_read_multiple_files",
+                "filesystem_read_media_file",
+                "filesystem_write_file",
+                "filesystem_create_directory",
+                "filesystem_list_directory",
+                "filesystem_directory_tree",
+                "filesystem_move_file",
+                "filesystem_search_files",
+                "filesystem_get_file_info",
+                "filesystem_list_allowed_directories",
             ])
 
-        initial_prompt = f"""Begin testing the application at: {session.target_url}
+        # Build initial prompt based on personality
+        if personality_name == "hybrid_auditor":
+            # Include source directory in prompt if specified
+            source_info = ""
+            if session.config.source_dir:
+                source_info = f"\nSource code is available at: {session.config.source_dir}"
+
+            initial_prompt = f"""Begin auditing the application at: {session.target_url}
+
+Your goal: {session.goal}
+{source_info}
+
+Exploration approach:
+1. First, navigate to the app URL and take a screenshot to understand the UI
+2. If source code path is provided, use bash commands to explore it:
+   - ls -la {session.config.source_dir or '/path/to/source'} to see files
+   - cat <file> to read files
+   - find <dir> -name "*.ts" to search for files
+3. Look at key files: package.json, README.md, main entry points (app.*, index.*, main.*)
+4. Correlate what you see in the UI with what you find in the code
+5. Report findings using report_finding for any issues
+
+When navigating to the URL, use waitUntil: "networkidle" to ensure JavaScript has loaded.
+"""
+        else:
+            initial_prompt = f"""Begin testing the application at: {session.target_url}
 
 Your goal: {session.goal}
 
@@ -239,6 +312,17 @@ Remember to report findings using the report_finding tool as you encounter them.
                                             action_sequence=[a.sequence for a in agent_run.actions[-5:]],
                                         )
                                         agent_run.findings.append(finding)
+
+                                        # Emit finding event
+                                        if event_callback:
+                                            await event_callback("finding_reported", {
+                                                "personality": personality_name,
+                                                "category": finding.category.value,
+                                                "severity": finding.severity.value,
+                                                "title": finding.title,
+                                                "description": finding.description,
+                                                "finding_index": len(agent_run.findings) - 1,
+                                            })
                                     except Exception as e:
                                         print(f"Error parsing finding: {e}")
 
@@ -250,6 +334,15 @@ Remember to report findings using the report_finding tool as you encounter them.
                                     if action:
                                         agent_run.actions.append(action)
                                         action_sequence += 1
+
+                                        # Emit action event
+                                        if event_callback:
+                                            await event_callback("action_taken", {
+                                                "personality": personality_name,
+                                                "action_type": action.action_type.value,
+                                                "action_sequence": action.sequence,
+                                                "parameters": action.parameters,
+                                            })
 
                     # Check for completion
                     if isinstance(message, ResultMessage):
@@ -354,51 +447,65 @@ Remember to report findings using the report_finding tool as you encounter them.
 
 
     def _parse_verdict(self, text: str) -> AgentVerdict:
-        """Parse the structured verdict response."""
+        """Parse the structured verdict response.
+
+        Expected format:
+            FIRST_SCREEN: Yes/No
+            OVERRIDES: 0 - none
+            COGNITIVE_LOAD: Reduced/Neutral/Increased
+            TRUST_SCORE: 1-10
+            WOULD_USE_AGAIN: Yes/No
+
+            COMMENTARY:
+            [multi-line text]
+        """
+        import re
         verdict = AgentVerdict()
-        
-        lines = text.split('\n')
-        for line in lines:
-            line = line.strip()
-            if "1. Was the first screen acceptable?" in line:
-                if "Yes" in line:
-                    verdict.first_screen_acceptable = True
-                elif "No" in line:
-                    verdict.first_screen_acceptable = False
-            elif "2. Did you override" in line:
-                raw = line.split("?")[1].strip() if "?" in line else line
-                # Simple extraction of count if present, else just detect yes
-                if "Yes" in raw:
-                    import re
-                    match = re.search(r"(\d+)", raw)
-                    verdict.override_count = int(match.group(1)) if match else 1
-                    verdict.override_reasons.append(raw)
-            elif "3. Did the UI reduce" in line:
-                if "Increased" in line:
-                    verdict.cognitive_load = CognitiveLoad.INCREASED
-                elif "Reduced" in line:
-                    verdict.cognitive_load = CognitiveLoad.REDUCED
-                else:
-                    verdict.cognitive_load = CognitiveLoad.NEUTRAL
-            elif "4. Did any transition" in line:
-                 pass # Currently not mapped in simple Verdict model yet
-            elif "5. Would you continue" in line:
-                if "Yes" in line:
-                    verdict.would_use_again = True
-                elif "No" in line:
-                    verdict.would_use_again = False
-            elif "6. Trust Score" in line:
-                import re
-                match = re.search(r"(\d+)", line)
-                if match:
-                    verdict.trust_level = int(match.group(1))
-            elif "Commentary:" in line or line.startswith(">"):
-                verdict.commentary = line.replace("Commentary:", "").replace(">", "").strip()
-        
-        # Capture multi-line commentary if not caught above
-        if not verdict.commentary and "Commentary" in text:
-            parts = text.split("Commentary")
-            if len(parts) > 1:
-                verdict.commentary = parts[1].strip(": \n\"'")
+
+        # Normalize text for parsing
+        text_upper = text.upper()
+
+        # Parse FIRST_SCREEN
+        match = re.search(r'FIRST_SCREEN\s*:\s*(YES|NO)', text_upper)
+        if match:
+            verdict.first_screen_acceptable = match.group(1) == "YES"
+
+        # Parse OVERRIDES - extract count and reason
+        match = re.search(r'OVERRIDES\s*:\s*(\d+)(?:\s*[-–—]\s*(.+))?', text, re.IGNORECASE)
+        if match:
+            verdict.override_count = int(match.group(1))
+            if match.group(2):
+                verdict.override_reasons.append(match.group(2).strip())
+
+        # Parse COGNITIVE_LOAD
+        match = re.search(r'COGNITIVE_LOAD\s*:\s*(REDUCED|NEUTRAL|INCREASED)', text_upper)
+        if match:
+            load_map = {
+                "REDUCED": CognitiveLoad.REDUCED,
+                "NEUTRAL": CognitiveLoad.NEUTRAL,
+                "INCREASED": CognitiveLoad.INCREASED,
+            }
+            verdict.cognitive_load = load_map.get(match.group(1), CognitiveLoad.UNKNOWN)
+
+        # Parse TRUST_SCORE
+        match = re.search(r'TRUST_SCORE\s*:\s*(\d+)', text_upper)
+        if match:
+            verdict.trust_level = int(match.group(1))
+
+        # Parse WOULD_USE_AGAIN
+        match = re.search(r'WOULD_USE_AGAIN\s*:\s*(YES|NO)', text_upper)
+        if match:
+            verdict.would_use_again = match.group(1) == "YES"
+
+        # Parse COMMENTARY - everything after "COMMENTARY:" label
+        match = re.search(r'COMMENTARY\s*:\s*\n?([\s\S]+)', text, re.IGNORECASE)
+        if match:
+            verdict.commentary = match.group(1).strip()
+
+        # Fallback: if no structured fields found, treat entire text as commentary
+        if (verdict.first_screen_acceptable is None and
+            verdict.trust_level == 0 and
+            not verdict.commentary):
+            verdict.commentary = text.strip() if text.strip() else "No commentary provided"
 
         return verdict

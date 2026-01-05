@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from ai_beta_tester.models.agent_run import AgentRun
+    from ai_beta_tester.models.rubric import AggregateRubricScore
 
 
 class SessionStatus(Enum):
@@ -27,6 +28,8 @@ class SessionConfig:
     max_actions: int = 50
     viewport_width: int = 1280
     viewport_height: int = 720
+    source_dir: str | None = None  # Source code directory for hybrid_auditor
+    agent_delay_seconds: int = 5  # Delay between agents to avoid API rate limits
 
 
 @dataclass
@@ -41,6 +44,7 @@ class Session:
     started_at: datetime | None = None
     ended_at: datetime | None = None
     agent_runs: list["AgentRun"] = field(default_factory=list)
+    aggregate_score: "AggregateRubricScore | None" = field(default=None)
 
     def start(self) -> None:
         """Mark session as started."""

@@ -24,17 +24,50 @@ class Personality(ABC):
     @classmethod
     def to_agent_definition(cls, goal: str) -> AgentDefinition:
         """Convert personality to an Agent SDK AgentDefinition."""
+        from ai_beta_tester.tools import get_tool, list_tools
+
+        # Default: No extra tools unless specified by subclass
+        tools_list = []
+        if hasattr(cls, "known_tools"):
+            for tool_name in cls.known_tools:
+                try:
+                    tools_list.append(get_tool(tool_name))
+                except ValueError:
+                    pass  # Gracefully ignore unknown tools
+
         return AgentDefinition(
             description=cls.description,
             prompt=cls.get_system_prompt(goal),
-            tools=None,  # Inherit all tools from parent
+            tools=tools_list if tools_list else None,
         )
+
+    @classmethod
+    def get_verdict_prompt(cls) -> str:
+        """Generate the verdict interview prompt for this personality."""
+        return """
+Based on your testing experience, provide a structured verdict.
+
+IMPORTANT: Use this EXACT format with the field names as shown:
+
+FIRST_SCREEN: [Yes/No]
+OVERRIDES: [number] - [brief reason if any]
+COGNITIVE_LOAD: [Reduced/Neutral/Increased]
+TRUST_SCORE: [1-10]
+WOULD_USE_AGAIN: [Yes/No]
+
+COMMENTARY:
+[Your detailed assessment of the application - what worked, what didn't, and your overall impression. Be specific about any issues encountered.]
+"""
 
     @classmethod
     def get_finding_prompt_section(cls) -> str:
         """Get the standard finding instruction section."""
         return """
-When you discover an issue, classify it as one of:
+When you discover an issue (BUG, UX_FRICTION, EDGE_CASE, etc.), successful or unsuccessful, YOU MUST use the `report_finding` tool immediately.
+
+Do not just write "I found a bug" in the chat. The system only records findings submitted via the `report_finding` tool.
+
+Reporting Categories:
 - BUG: Something is clearly broken (button doesn't work, error shown, crash)
 - UX_FRICTION: Works but confusing or frustrating (unclear labels, too many steps)
 - EDGE_CASE: Unexpected behavior under unusual conditions (special chars, long input)
@@ -42,12 +75,7 @@ When you discover an issue, classify it as one of:
 - MISSING_FEEDBACK: User left uncertain about state (no confirmation, unclear loading)
 - PERFORMANCE: Noticeable delay or hang (>3 seconds for simple actions)
 
-For each finding, provide:
-1. A short title (under 10 words)
-2. A description of what happened
-3. The severity (critical/high/medium/low)
-
-Report findings as you encounter them, don't wait until the end.
+Report findings as you encounter them.
 """
 
 
