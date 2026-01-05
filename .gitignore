@@ -45,3 +45,4 @@ htmlcov/
 sessions/
 reports/
 screenshots/
+node_modules
