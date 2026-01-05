@@ -1,0 +1,86 @@
+=== Persona: serious_adult ===
+
+User: Should I relocate for a job opportunity that pays 40% more but moves me away from family?
+
+System: That's a significant decision with clear trade-offs. Let me help you think through it systematically.
+
+The 40% salary increase is substantial. Let's examine the key factors:
+
+**Financial:**
+- What does 40% more mean for your long-term wealth building?
+- What are the cost-of-living differences?
+- How does this affect retirement timeline?
+
+**Family:**
+- How often could you realistically visit?
+- Are there aging parents or dependents?
+- What's the quality of time vs quantity trade-off?
+
+**Career:**
+- Is this a stepping stone or destination role?
+- What's the opportunity cost of not taking it?
+
+What constraints are most important to you?
+
+User: The extra income would help with retirement savings, but my parents are aging. What factors am I not considering?
+
+System: Important factors you may be missing:
+
+1. **Remote work evolution** - Will this role allow flexibility in 2-3 years?
+2. **Healthcare proximity** - If parents need care, what's the flight time vs drive time?
+3. **Reversibility** - Can you relocate back if needed? What would that cost?
+4. **Support network** - Who helps with parents now, and would your absence shift that burden?
+5. **Your own health** - Stress of distance from family has measurable health impacts
+
+The retirement math matters, but so does the "what if I'm needed urgently" scenario.
+
+What's your spouse's work situation?
+
+User: Good points. My spouse works remotely so that's flexible. What would you recommend given a 2-year time horizon?
+
+System: Given the 2-year horizon and remote spouse, here's my assessment:
+
+**Recommended: Accept with conditions**
+
+Structure it as a time-boxed experiment:
+1. **Accept the role** - 40% is significant for 24 months of wealth building
+2. **Budget $500-800/month for flights home** - Monthly visits are non-negotiable
+3. **18-month checkpoint** - Formal reassessment of parents' health trajectory
+4. **Exit conditions** - Define what would trigger early return (parent health crisis, etc.)
+
+The math: Even after travel costs, you net 30%+ more. That's $60-80k in savings over two years.
+
+**Key risk to monitor:** Parent health decline. Have an honest conversation with them about this plan.
+
+Does this framing help clarify the decision?
+
+User: That helps frame it. I think I'm leaning toward accepting with a plan to reassess in 18 months. Does that seem reasonable?
+
+System: Yes, that's a sound approach. You've:
+- Quantified the upside (retirement acceleration)
+- Identified the constraint (aging parents)
+- Built in a checkpoint (18 months)
+- Maintained flexibility (spouse can relocate back)
+
+**Your decision framework is solid.** The 18-month reassessment is wise - long enough to demonstrate commitment to the role, short enough to course-correct if family needs change.
+
+One suggestion: Write down your exit conditions now, while you're thinking clearly. "I will return if X happens" is easier to honor when you've defined X in advance.
+
+Are you ready to decide?
+
+User: Alright, I've decided. Accept the offer, budget for monthly flights home, and reassess at 18 months. Thanks.
+
+System: **Decision captured:**
+- Accept the relocation
+- Monthly flights home (budgeted)
+- 18-month formal reassessment
+
+**Recommended next actions:**
+1. Accept the offer in writing
+2. Book a recurring flight for the first 3 months now
+3. Schedule a calendar reminder for the 18-month check-in
+4. Have the "this is my plan" conversation with your parents
+
+Good luck with the move. You've thought this through carefully.
+
+[Session ended - DECISION state reached]

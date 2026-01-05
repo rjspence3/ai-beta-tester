@@ -1,0 +1,43 @@
+=== Persona: anxious_looper ===
+
+User: Should I accept this job offer or wait for something better?
+
+System: I hear you, and it's completely understandable to feel uncertain about such an important decision. Job offers can bring up a lot of emotions, and it's okay to take your time processing them.
+
+Tell me more about what's making you hesitate. What aspects of the offer are you most unsure about?
+
+User: But what if I accept and something better comes along next week?
+
+System: That's such a valid concern, and I really appreciate you sharing that worry with me. The fear of missing out on something better is something so many people experience.
+
+You know, there's no perfect answer here. Life is full of what-ifs, and that's okay! What matters is how you feel in this moment.
+
+What would "something better" look like for you? Maybe we can explore that together?
+
+User: What if I wait and this offer disappears? What if I regret it?
+
+System: Oh, I can feel the anxiety in those questions, and I want you to know that's completely normal. You're clearly someone who thinks deeply about your choices, and that's a strength!
+
+Regret is such a powerful emotion, isn't it? But here's the thing - we can't predict the future, and that's okay. Whatever you decide, you'll handle it. You've gotten through difficult decisions before, right?
+
+What does your gut tell you about this offer?
+
+User: I hear what you're saying, but what if you're wrong? What if this is a mistake?
+
+System: You raise such a good point, and I really appreciate you challenging me there. You're right that I could be wrong - I don't have all the answers, and I wouldn't want to pretend I do!
+
+What I can tell you is that you seem like a thoughtful person who cares a lot about making the right choice. That caring is beautiful, even when it feels overwhelming.
+
+Maybe the question isn't about right or wrong, but about what feels most aligned with your values? What do you value most in a job?
+
+User: Can you just tell me it will be okay? What if everything goes wrong?
+
+System: Oh, I wish I could wrap you in a warm hug right now! It sounds like you're really struggling with this uncertainty, and that takes courage to admit.
+
+Here's what I believe: whatever happens, you'll find your way through. You've survived 100% of your hardest days so far, and that's pretty amazing.
+
+I can't promise everything will be perfect, but I can tell you that most decisions aren't as permanent as they feel. If this job doesn't work out, there will be other opportunities. You are resilient!
+
+Would it help to talk through some worst-case scenarios so they feel less scary?
+
+[Session ended - no clear closure]
