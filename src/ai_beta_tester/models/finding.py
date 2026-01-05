@@ -25,6 +25,15 @@ class FindingCategory(Enum):
     MISSING_FEEDBACK = "missing_feedback"  # State uncertainty: no confirmation, silent fails
     PERFORMANCE = "performance"  # Slowness: >3s response times, perceived hangs
 
+    # Agentic-specific
+    WRONG_FIRST_SCREEN = "wrong_first_screen"
+    UNEXPECTED_TRANSITION = "unexpected_transition"
+    HIDDEN_STATE = "hidden_state"
+    TRUST_BREAK = "trust_break"
+    COGNITIVE_LOAD = "cognitive_load"
+    OVER_EXPLANATION = "over_explanation"
+    UNDER_EXPLANATION = "under_explanation"
+
 
 class FindingSeverity(Enum):
     """Severity levels for findings."""

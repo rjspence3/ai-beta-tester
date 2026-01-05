@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 if TYPE_CHECKING:
     from ai_beta_tester.models.action import Action
     from ai_beta_tester.models.finding import Finding
+    from ai_beta_tester.models.rubric import AgentVerdict, RubricScore
 
 
 class AgentRunStatus(Enum):
@@ -33,6 +34,8 @@ class AgentRun:
     ended_at: datetime | None = None
     actions: list["Action"] = field(default_factory=list)
     findings: list["Finding"] = field(default_factory=list)
+    verdict: "AgentVerdict | None" = field(default=None)
+    score: "RubricScore | None" = field(default=None)
 
     def start(self) -> None:
         """Mark agent run as started."""
