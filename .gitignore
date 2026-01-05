@@ -45,4 +45,11 @@ htmlcov/
 sessions/
 reports/
 screenshots/
-node_modules
+node_modules/
+
+# Generated files
+ai-beta-reports/
+evaluation_report.md
+AUDIT_*.md
+sdk_dir.txt
+tools_list.json
