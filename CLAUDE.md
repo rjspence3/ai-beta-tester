@@ -1,20 +1,21 @@
-# AI Beta Tester
+<!-- AUTO-GENERATED from ports.json — do not edit manually -->
+<!-- Regenerate: python3 ~/Development/generate_claude_md.py --apply -->
 
-AI-powered beta testing automation tool with browser automation.
+# Ai Beta Tester
+
+FastAPI + JavaScript + Python project.
 
 ---
 
 ## Environment Setup
 
 ```bash
-# Backend: Activate virtual environment (REQUIRED before any Python commands)
+# Activate virtual environment (REQUIRED)
 source .venv/bin/activate
 
-# Install backend dependencies
+# Install dependencies
 pip install -e .
-
-# Frontend: Install dependencies
-cd ui && npm install
+pip install -e ".[dev]"  # includes test dependencies
 ```
 
 ---
@@ -23,32 +24,31 @@ cd ui && npm install
 
 | Service | Domain | Port |
 |---------|--------|------|
-| Frontend (Next.js) | http://ai-beta-tester.test | 3080 |
-| Backend API | http://ai-beta-tester-api.test | 8765 |
+| Api | http://ai-beta-tester-api.test | 8765 |
+| Frontend | http://ai-beta-tester.test | 3080 |
 
-Port assignments are defined in `~/Development/dev/ports.json` (authoritative).
+Port assignments defined in `~/Development/dev/ports.json`.
 
 ---
 
 ## Commands
 
 ```bash
-# Start backend API
-ai-beta-test ui --no-browser
+# Start API
+source .venv/bin/activate && ai-beta-test ui --no-browser
 
 # Start frontend
-cd ui && npm run dev
+npm run dev
 
 # Run tests
 pytest
+
+# Type checking
+mypy .
+
+# Lint
+ruff check .
 ```
-
----
-
-## Notes
-
-- Uses Playwright for browser automation
-- Next.js frontend + FastAPI backend
 
 ---
 
@@ -102,6 +102,10 @@ reports/
   napgpt_run_exploit/
     screenshots/
     sessions/
+  napgpt_run_final/
+    screenshots/
+    sessions/
+  solar-sync/
 screenshots/
 sessions/
 src/
@@ -128,3 +132,9 @@ ui/
     hooks/
     lib/
 ```
+
+---
+
+## Notes
+
+- Tech: FastAPI, JavaScript, Python

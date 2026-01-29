@@ -25,6 +25,10 @@ app = typer.Typer(
     help="AI-powered exploratory testing with distinct agent personalities",
     no_args_is_help=True,
 )
+
+# Add experiment subcommand
+from ai_beta_tester.experiments.dspy_persona.cli import app as experiment_app
+app.add_typer(experiment_app, name="experiment", help="Persona prompt optimization experiments")
 console = Console()
 
 
