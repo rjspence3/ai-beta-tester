@@ -265,7 +265,7 @@ For high-volume testing, consider using Claude Haiku by editing the orchestrator
 
 ## License
 
-Internal tool - not for redistribution.
+MIT
 
 ## References
 

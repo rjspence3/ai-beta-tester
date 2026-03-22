@@ -1,10 +1,12 @@
 """FastAPI application for AI Beta Tester web UI."""
 
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 
 from ai_beta_tester.api.routes import filesystem, sessions, reports
 
@@ -20,11 +22,37 @@ async def lifespan(app: FastAPI):
     await session_manager.shutdown()
 
 
+# ── Authentication ────────────────────────────────────────────────────────────
+_API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _require_api_key(key: str | None = Security(_API_KEY_HEADER)) -> None:
+    """Validate the X-API-Key header against the API_KEY environment variable.
+
+    Set API_KEY in the environment before starting the server. Requests without
+    a matching key receive 401.
+    """
+    expected = os.environ.get("API_KEY")
+    if not expected:
+        # If no API_KEY is configured the server refuses all requests rather
+        # than silently becoming public.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API_KEY not configured on server",
+        )
+    if key != expected:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+        )
+
+
 app = FastAPI(
     title="AI Beta Tester API",
     description="Backend API for AI Beta Tester web dashboard",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(_require_api_key)],
 )
 
 # CORS for local development

@@ -135,6 +135,16 @@ async def detect_project_info(
     """
     target = Path(path).expanduser().resolve()
 
+    # Security: only allow detection under home directory
+    home = Path.home()
+    try:
+        target.relative_to(home)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot inspect outside home directory"
+        )
+
     if not target.exists():
         raise HTTPException(status_code=404, detail="Directory not found")
 

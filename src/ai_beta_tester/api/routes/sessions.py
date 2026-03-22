@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ai_beta_tester.api.events import event_manager, EventType
 from ai_beta_tester.models import SessionConfig
@@ -33,8 +33,8 @@ class CreateSessionRequest(BaseModel):
     target_url: str
     goal: str
     personalities: list[str]
-    max_actions: int = 50
-    max_duration_seconds: int = 300
+    max_actions: int = Field(default=50, ge=1, le=200)
+    max_duration_seconds: int = Field(default=300, ge=10, le=1800)
 
 
 class SessionSummary(BaseModel):

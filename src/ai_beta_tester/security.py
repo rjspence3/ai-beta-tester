@@ -12,7 +12,7 @@ class NavigationGuard:
     """Enforces network navigation security policies."""
 
     BLOCKED_NETWORKS = [
-        # ipaddress.ip_network("127.0.0.0/8"),      # Loopback - TEMPORARILY DISABLED for local testing
+        ipaddress.ip_network("127.0.0.0/8"),      # Loopback
         ipaddress.ip_network("10.0.0.0/8"),       # Private Class A
         ipaddress.ip_network("172.16.0.0/12"),    # Private Class B
         ipaddress.ip_network("192.168.0.0/16"),   # Private Class C
