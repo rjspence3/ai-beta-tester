@@ -135,7 +135,7 @@ export function LiveProgress({ sessionId }: LiveProgressProps) {
                     #{Number(action.action_sequence)}
                   </span>{' '}
                   <span className="text-blue-400">{String(action.action_type)}</span>
-                  {action.parameters && (
+                  {!!action.parameters && (
                     <span className="text-gray-400 ml-2">
                       {JSON.stringify(action.parameters).slice(0, 50)}...
                     </span>

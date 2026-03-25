@@ -1,10 +1,15 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
-  title: 'AI Beta Tester',
-  description: 'AI-powered exploratory testing dashboard',
+  title: 'AI Beta Tester — Personality-driven web testing',
+  description: 'AI agents with distinct personalities browse your app to surface bugs you can\'t see. 13 testers, Claude-powered, Playwright automation.',
 };
 
 export default function RootLayout({
@@ -13,41 +18,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen">
-        <div className="flex flex-col min-h-screen">
-          {/* Navigation */}
-          <nav className="border-b border-gray-800 bg-gray-900/50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between h-14">
-                <div className="flex items-center space-x-8">
-                  <Link href="/" className="text-lg font-semibold text-white">
-                    AI Beta Tester
-                  </Link>
-                  <div className="flex space-x-4">
-                    <Link
-                      href="/sessions"
-                      className="text-gray-400 hover:text-white transition-colors"
-                    >
-                      Sessions
-                    </Link>
-                    <Link
-                      href="/sessions/new"
-                      className="text-gray-400 hover:text-white transition-colors"
-                    >
-                      New Test
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </nav>
-
-          {/* Main content */}
-          <main className="flex-1">
-            {children}
-          </main>
-        </div>
+    <html lang="en" className={inter.className}>
+      <body className="min-h-screen bg-[#F8F9FC] text-[#111827]">
+        {children}
       </body>
     </html>
   );
